@@ -38,7 +38,7 @@ public class SwipeView extends FrameLayout {
 
     public static final float FLING_FRICTION = .85f;
     public static final double THRESHOLD_FRACTION = .90;
-    public static final int ANIMATE_TO_START_DURATION = 300;
+    public static final int ANIMATE_TO_START_DURATION = 200;
     public static final int ANIMATE_TO_END_DURATION = 200;
 
     @BindView(R.id.swipe_layout) FrameLayout layout;
@@ -111,7 +111,7 @@ public class SwipeView extends FrameLayout {
 
     private void animateToStart() {
         cancelAnimations();
-        float leftEdge = layout.getWidth() - (imageLayout.getX() + imageLayout.getWidth());
+        float leftEdge = layout.getWidth() - imageLayout.getX();
         leftEdge -= calculateTranslation(leftEdge);
         animator = ValueAnimator.ofFloat(leftEdge, 0);
         animator.addUpdateListener(valueAnimator -> setDragProgress((Float)valueAnimator.getAnimatedValue()));

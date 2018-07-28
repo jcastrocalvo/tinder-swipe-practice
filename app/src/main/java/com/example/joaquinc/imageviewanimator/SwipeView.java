@@ -12,6 +12,7 @@ import android.support.annotation.AttrRes;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.StyleRes;
+import android.support.constraint.ConstraintLayout;
 import android.util.AttributeSet;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
@@ -41,7 +42,8 @@ public class SwipeView extends FrameLayout {
     public static final int ANIMATE_TO_END_DURATION = 200;
 
     @BindView(R.id.swipe_layout) FrameLayout layout;
-    @BindView(R.id.image_layout) View imageLayout;
+    @BindView(R.id.image_layout) ConstraintLayout imageLayout;
+    @BindView(R.id.nope_text) FrameLayout nopeText;
 
     private void init() {
         View view = inflate(getContext(), R.layout.swipe_layout, this);
@@ -87,6 +89,14 @@ public class SwipeView extends FrameLayout {
     private void setDragProgress(float x) {
         final int translation = calculateTranslation(x);
         setPadding(translation , 0, - translation, 0);
+        if(!triggered) {
+            nopeText.setAlpha(x / getWidth());
+            nopeText.requestLayout();
+
+        } else {
+            nopeText.setAlpha(1);
+            nopeText.requestLayout();
+        }
         imageLayout.requestLayout();
         layout.requestLayout();
     }
@@ -95,13 +105,13 @@ public class SwipeView extends FrameLayout {
         if(finalX > THRESHOLD_FRACTION * layout.getWidth()) {
             animateToEnd(finalX);
         } else {
-            animateToStart(finalX);
+            animateToStart();
         }
     }
 
-    private void animateToStart(float currentValue) {
+    private void animateToStart() {
         cancelAnimations();
-        float leftEdge = layout.getWidth() + imageLayout.getX();
+        float leftEdge = layout.getWidth() - (imageLayout.getX() + imageLayout.getWidth());
         leftEdge -= calculateTranslation(leftEdge);
         animator = ValueAnimator.ofFloat(leftEdge, 0);
         animator.addUpdateListener(valueAnimator -> setDragProgress((Float)valueAnimator.getAnimatedValue()));

@@ -2,6 +2,7 @@ package com.example.joaquinc.imageviewanimator;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
+import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
 import android.annotation.TargetApi;
 import android.content.Context;
@@ -13,6 +14,7 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.StyleRes;
 import android.support.constraint.ConstraintLayout;
+import android.support.v7.widget.AppCompatImageView;
 import android.text.Layout;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -43,7 +45,7 @@ public class SwipeView extends FrameLayout {
 
     public static final float FLING_FRICTION = .85f;
     public static final double THRESHOLD_FRACTION = .90;
-    public static final int ANIMATE_TO_START_DURATION = 200;
+    public static final int ANIMATE_TO_START_DURATION = 150;
     public static final int ANIMATE_TO_END_DURATION = 200;
 
     private float previousLocation = 0;
@@ -54,12 +56,15 @@ public class SwipeView extends FrameLayout {
     @BindView(R.id.swipe_layout) FrameLayout layout;
     @BindView(R.id.image_layout) ConstraintLayout imageLayout;
     @BindView(R.id.nope_text) FrameLayout nopeText;
+    @BindView(R.id.image) AppCompatImageView imageView;
+
+    private float previousRotation = 0;
 
     private void init() {
         View view = inflate(getContext(), R.layout.swipe_layout, this);
         unbinder = ButterKnife.bind(view);
         float scale = this.getResources().getDisplayMetrics().density;
-        view.setCameraDistance(8000 * scale);
+        imageView.setCameraDistance(8000 * scale);
         gestureDetector = new GestureDetector(getContext(), new GestureDetector.SimpleOnGestureListener() {
 
             @Override
@@ -90,7 +95,7 @@ public class SwipeView extends FrameLayout {
                     return true;
                 }else if(isSwipingRight) {
                     Log.e("SWIPE RIGHT", "SWIPE RIGHT:" + calculatedDifference);
-                    setRotationProgress(motionEvent.getX());
+                    setRotationProgress();
                     cancelAnimations();
                 }
 
@@ -99,29 +104,38 @@ public class SwipeView extends FrameLayout {
 
             @Override
             public boolean onFling(MotionEvent downEvent, MotionEvent moveEvent, float velocityX, float velocityY) {
-                if(velocityX > 0) {
+                if(velocityX == 0) {
                     return false;
                 }
-                cancelAnimations();
-                flingAnimation = new FlingAnimation(new FloatValueHolder(moveEvent.getX() - previousLocation));
-                flingAnimation.setStartVelocity(velocityX)
-                        .setMinValue(-layout.getWidth() - 5000)
-                        .setFriction(FLING_FRICTION)
-                        .addUpdateListener((dynamicAnimation, val, velocity) -> setDragProgress(val))
-                        .addEndListener((dynamicAnimation, canceled, val, velocity) ->  onDragFinished(val) )
-                        .start();
+                if(velocityX > 100 && isSwipingRight) {
+                    Log.e("FLING RIGHT", "FLING RIGHT");
+                    cancelAnimations();
+                    ObjectAnimator animator = ObjectAnimator.ofFloat(imageView, "rotationY", previousRotation, 720f);
+                    animator.start();
+                }
+                if(velocityX < -50 || isSwipingLeft) {
+                    cancelAnimations();
+                    flingAnimation = new FlingAnimation(new FloatValueHolder(moveEvent.getX() - previousLocation));
+                    flingAnimation.setStartVelocity(velocityX)
+                            .setMinValue(-layout.getWidth() - 5000)
+                            .setFriction(FLING_FRICTION)
+                            .addUpdateListener((dynamicAnimation, val, velocity) -> setDragProgress(val))
+                            .addEndListener((dynamicAnimation, canceled, val, velocity) -> onDragFinished(val))
+                            .start();
 
+                    return true;
+                }
                 return true;
             }
         });
         gestureDetector.setIsLongpressEnabled(false);
     }
 
-    private void setRotationProgress(float x) {
-//        setRotationY(x);
-        imageLayout.setRotationY(x);
-        imageLayout.requestLayout();
-//        layout.requestLayout();
+    private void setRotationProgress() {
+        previousRotation = previousRotation + 2f;
+        ObjectAnimator rotationAnimator = ObjectAnimator.ofFloat(imageView, "rotationY", previousRotation);
+        rotationAnimator.setDuration((long).25);
+        rotationAnimator.start();
     }
 
     private void setDragProgress(float x) {
@@ -140,11 +154,33 @@ public class SwipeView extends FrameLayout {
     }
 
     private void onDragFinished(float finalX) {
-        if(finalX < THRESHOLD_FRACTION * (-layout.getWidth() - 300)) {
-            animateToEnd(finalX);
-        } else {
-            animateToStart();
+        if(isSwipingRight) {
+            if(previousRotation < 110f)
+                animateToNoRotation();
+            else
+                animateToEndRotation();
         }
+        if(isSwipingLeft) {
+            if(finalX < THRESHOLD_FRACTION * (-layout.getWidth() - 300)) {
+                animateToEnd(finalX);
+            } else {
+                animateToStart();
+            }
+        }
+    }
+
+    private void animateToNoRotation() {
+        cancelAnimations();
+        ObjectAnimator animator = ObjectAnimator.ofFloat(imageView, "rotationY", previousRotation, 0f);
+        previousRotation = 0;
+        animator.start();
+        isSwipingRight = false;
+    }
+
+    private void animateToEndRotation() {
+        cancelAnimations();
+        ObjectAnimator animator = ObjectAnimator.ofFloat(imageView, "rotationY", previousRotation, 360f);
+        animator.start();
     }
 
     private void animateToStart() {
@@ -162,6 +198,7 @@ public class SwipeView extends FrameLayout {
         animator.setDuration(ANIMATE_TO_START_DURATION);
         animator.start();
         previousLocation = 0;
+        isSwipingLeft = false;
     }
 
     private void animateToEnd(float currentValue) {

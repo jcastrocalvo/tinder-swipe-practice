@@ -14,9 +14,11 @@ import android.support.annotation.Nullable;
 import android.support.annotation.StyleRes;
 import android.support.constraint.ConstraintLayout;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.FrameLayout;
 
 import butterknife.BindView;
@@ -41,6 +43,8 @@ public class SwipeView extends FrameLayout {
     public static final int ANIMATE_TO_START_DURATION = 200;
     public static final int ANIMATE_TO_END_DURATION = 200;
 
+    private float previousLocation = 0;
+
     @BindView(R.id.swipe_layout) FrameLayout layout;
     @BindView(R.id.image_layout) ConstraintLayout imageLayout;
     @BindView(R.id.nope_text) FrameLayout nopeText;
@@ -58,19 +62,34 @@ public class SwipeView extends FrameLayout {
             @Override
             public boolean onScroll(MotionEvent motionEvent, MotionEvent motionEvent1, float v, float v1) {
                 cancelAnimations();
-                setDragProgress(motionEvent1.getX());
+                if(previousLocation == 0) {
+                    previousLocation = motionEvent1.getX();
+                    return true;
+                }
+                float calculateDifference = motionEvent1.getX() - previousLocation;
+                Log.e("calculateDifference", "calculateDifference: " + calculateDifference);
+                if(calculateDifference < 0) {
+                    Log.e("SWIPE LEFT", "SWIPE LEFT:" + calculateDifference);
+                    cancelAnimations();
+                    return true;
+                }else {
+                    Log.e("SWIPE RIGHT", "SWIPE RIGHT:" + calculateDifference);
+                    cancelAnimations();
+                    setDragProgress(calculateDifference);
+                }
+
                 return true;
             }
 
             @Override
             public boolean onFling(MotionEvent downEvent, MotionEvent moveEvent, float velocityX, float velocityY) {
-                if(velocityX < 3) {
+                if(velocityX < 0) {
                     return false;
                 }
                 cancelAnimations();
                 flingAnimation = new FlingAnimation(new FloatValueHolder(moveEvent.getX()));
                 flingAnimation.setStartVelocity(velocityX)
-                        .setMaxValue(getWidth() + 5000)
+                        .setMaxValue(layout.getWidth() + 5000)
                         .setFriction(FLING_FRICTION)
                         .addUpdateListener((dynamicAnimation, val, velocity) -> setDragProgress(val))
                         .addEndListener((dynamicAnimation, canceled, val, velocity) -> onDragFinished(val))
@@ -82,13 +101,8 @@ public class SwipeView extends FrameLayout {
         gestureDetector.setIsLongpressEnabled(false);
     }
 
-    private int calculateTranslation(float x) {
-        return (int) x / 2;
-    }
-
     private void setDragProgress(float x) {
-        final int translation = calculateTranslation(x);
-        setPadding(translation , 0, - translation, 0);
+        setPadding((int)x, 0, - (int)x, 0);
         if(!triggered) {
             nopeText.setAlpha(x / getWidth());
             nopeText.requestLayout();
@@ -102,7 +116,7 @@ public class SwipeView extends FrameLayout {
     }
 
     private void onDragFinished(float finalX) {
-        if(finalX > THRESHOLD_FRACTION * layout.getWidth()) {
+        if(finalX > THRESHOLD_FRACTION * (layout.getWidth() + 300)) {
             animateToEnd(finalX);
         } else {
             animateToStart();
@@ -111,9 +125,7 @@ public class SwipeView extends FrameLayout {
 
     private void animateToStart() {
         cancelAnimations();
-        float leftEdge = layout.getWidth() - imageLayout.getX();
-        leftEdge -= calculateTranslation(leftEdge);
-        animator = ValueAnimator.ofFloat(leftEdge, 0);
+        animator = ValueAnimator.ofFloat(getPaddingLeft(), 0);
         animator.addUpdateListener(valueAnimator -> setDragProgress((Float)valueAnimator.getAnimatedValue()));
         animator.addListener(new AnimatorListenerAdapter() {
             @Override
@@ -130,8 +142,7 @@ public class SwipeView extends FrameLayout {
     private void animateToEnd(float currentValue) {
         cancelAnimations();
         float rightEdge = layout.getWidth() + imageLayout.getX();
-        rightEdge += calculateTranslation(rightEdge) * 10;
-        animator = ValueAnimator.ofFloat(currentValue, rightEdge);
+        animator = ValueAnimator.ofFloat(currentValue, rightEdge * 2);
         animator.addUpdateListener(valueAnimator -> setDragProgress((Float)valueAnimator.getAnimatedValue()));
         animator.addListener(new AnimatorListenerAdapter() {
             @Override
